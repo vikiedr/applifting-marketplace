@@ -2,8 +2,17 @@ from rest_framework.test import APIClient
 from rest_framework import status
 import pytest
 from django.urls import reverse
-from .models import Product
+from unittest.mock import patch
+import json
 
+from product_catalogue.models import Product
+
+
+class MockOffersService:
+    def register_product_for_offers(self, product_data: json) -> None:
+        return
+
+@patch("product_catalogue.services.OffersService", MockOffersService)
 @pytest.mark.django_db
 def test_create_product():
     client = APIClient()

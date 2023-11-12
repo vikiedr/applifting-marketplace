@@ -128,3 +128,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Offers Microservice settings
+OFFERS_SERVICE_BASE_URL = getenv('OFFERS_SERVICE_BASE_URL')
+OFFERS_SERVICE_REFRESH_TOKEN = getenv('OFFERS_SERVICE_REFRESH_TOKEN')
