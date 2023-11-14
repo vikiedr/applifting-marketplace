@@ -1,0 +1,88 @@
+version: '3'
+services:
+  django:
+    build:
+      context: ./
+      dockerfile: DockerfileDjango
+    container_name: django
+    environment:
+      - DATABASE_URL=postgres://vikiedr:wouldnt_normally_put_password_here@db:5432/marketplace_db
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672
+      - SECRET_KEY=${SECRET_KEY}
+      - OFFERS_SERVICE_BASE_URL=${OFFERS_SERVICE_BASE_URL}
+      - OFFERS_SERVICE_REFRESH_TOKEN=${OFFERS_SERVICE_REFRESH_TOKEN}
+    networks:
+      - applifting-marketplace
+    command: sh -c "
+        python manage.py makemigrations &&
+        python manage.py migrate &&
+        gunicorn --bind 0.0.0.0:8000 marketplace.wsgi:application"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  db:
+    image: postgres
+    volumes:
+      - postgres_data:/var/postgres/data/
+    environment:
+      - POSTGRES_DB=marketplace_db
+      - POSTGRES_USER=vikiedr
+      - POSTGRES_PASSWORD=wouldnt_normally_put_password_here
+    networks:
+      - applifting-marketplace
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "vikiedr", "-d", "marketplace_db", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: rabbitmq
+    networks:
+      - applifting-marketplace
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    depends_on:
+      - db
+
+  celery-worker:
+    build:
+      context: ./
+      dockerfile: DockerfileCeleryWorker
+    container_name: celery-worker
+    environment:
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672
+      - DATABASE_URL=postgres://vikiedr:wouldnt_normally_put_password_here@db:5432/marketplace_db
+      - SECRET_KEY=${SECRET_KEY}
+      - OFFERS_SERVICE_BASE_URL=${OFFERS_SERVICE_BASE_URL}
+      - OFFERS_SERVICE_REFRESH_TOKEN=${OFFERS_SERVICE_REFRESH_TOKEN}
+    networks:
+      - applifting-marketplace
+    depends_on:
+      - rabbitmq
+
+  celery-beat:
+    build:
+      context: ./
+      dockerfile: DockerfileCeleryBeat
+    container_name: celery-beat
+    environment:
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672
+      - SECRET_KEY=${SECRET_KEY}
+      - OFFERS_SERVICE_BASE_URL=${OFFERS_SERVICE_BASE_URL}
+      - OFFERS_SERVICE_REFRESH_TOKEN=${OFFERS_SERVICE_REFRESH_TOKEN}
+    networks:
+      - applifting-marketplace
+    depends_on:
+      - celery-worker
+
+networks:
+  applifting-marketplace:
+
+volumes:
+  postgres_data:

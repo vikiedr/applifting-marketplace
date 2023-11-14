@@ -1,0 +1,11 @@
+FROM python:3.10
+
+ENV DJANGO_SETTINGS_MODULE=marketplace.settings
+
+WORKDIR /app
+COPY requirements.txt /app/
+RUN pip install -r requirements.txt
+
+COPY . /app
+
+CMD ["celery", "-A", "marketplace", "worker", "-E", "-l", "info"]
