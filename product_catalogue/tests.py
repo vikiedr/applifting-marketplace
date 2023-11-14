@@ -24,6 +24,18 @@ def test_create_product(mock_register_product_for_offers):
     product = Product.objects.first()
     assert product.name == 'Test Product'
     assert product.description == 'Test Description'
+    
+@pytest.mark.django_db
+def test_create_product_error():
+    with patch('product_catalogue.services.OffersService.register_product_for_offers', side_effect=Exception()):
+        client = APIClient()
+        url = reverse('product-list')
+        data = {'name': 'Test Product', 'description': 'Test Description'}
+        
+        response = client.post(url, data, format='json')
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+        assert Product.objects.count() == 0
 
 @pytest.mark.django_db
 def test_retrieve_product_without_offers():
