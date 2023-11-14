@@ -5,6 +5,7 @@ from product_catalogue import views
 
 router = DefaultRouter()
 router.register(r'products', views.ProductViewSet, basename="product")
+router.register(r'offers', views.OfferViewSet, basename="offer")
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),

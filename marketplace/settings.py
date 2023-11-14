@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 from os import getenv
 import dj_database_url
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -129,6 +130,41 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}: {levelname}/{module}] {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+
 # Offers Microservice settings
 OFFERS_SERVICE_BASE_URL = getenv('OFFERS_SERVICE_BASE_URL')
 OFFERS_SERVICE_REFRESH_TOKEN = getenv('OFFERS_SERVICE_REFRESH_TOKEN')
+
+# Celery
+CELERY_BROKER_URL = getenv('CELERY_BROKER_URL')
+CELERY_BEAT_SCHEDULE = {
+    'fetch_offers_task': {
+        'task': 'product_catalogue.tasks.fetch_offers_task',
+        'schedule': timedelta(seconds=90),
+    },
+}

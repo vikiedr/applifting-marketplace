@@ -7,8 +7,27 @@ class Product(models.Model):
     description = models.TextField()
 
     def __str__(self):
-        return self.name
+        return f'{self.name} ({self.id})'
     
+
+class Offer(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    price = models.IntegerField()
+    items_in_stock = models.IntegerField()
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='offers')
+
+    @classmethod
+    def from_json(cls, json_data, product):
+        return cls(
+            id=json_data.get('id'),
+            price=json_data.get('price'),
+            items_in_stock=json_data.get('items_in_stock'),
+            product=product,
+        )
+
+    def __str__(self):
+        return f'{self.product.name}: {self.price} ({self.items_in_stock} left)'
+
 
 class OfferCredentials(models.Model):
     refresh_token = models.UUIDField(primary_key=True, editable=False)
