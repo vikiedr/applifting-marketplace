@@ -9,4 +9,5 @@ router.register(r'offers', views.OfferViewSet, basename="offer")
 
 urlpatterns = [
     path('api/v1/', include(router.urls)),
+    path('api/v1/auth', views.UsersView.as_view(), name='auth'),
 ]

@@ -4,21 +4,28 @@ import pytest
 from django.urls import reverse
 from unittest.mock import patch
 from datetime import datetime, timedelta
+from uuid import uuid4
 
 from product_catalogue.tasks import fetch_offers_task
-from product_catalogue.models import Product, Offer
+from product_catalogue.models import Product, Offer, User
 from product_catalogue.serializers import OfferSerializer
+
+
+@pytest.fixture
+@pytest.mark.django_db
+def user():
+    user = User.objects.create(email='testuser@gmail.com', access_token=uuid4())
+    return user
 
 
 @patch("product_catalogue.services.OffersService")
 @pytest.mark.django_db
-def test_create_product(mock_register_product_for_offers):
-    client = APIClient()
+def test_create_product(mock_register_product_for_offers, user):
     url = reverse('product-list')
     data = {'name': 'Test Product', 'description': 'Test Description'}
     mock_register_product_for_offers.return_value = None
 
-    response = client.post(url, data, format='json')
+    response = _send_post_request_auth(url, data, user)
     assert response.status_code == status.HTTP_201_CREATED
 
     assert Product.objects.count() == 1
@@ -28,27 +35,25 @@ def test_create_product(mock_register_product_for_offers):
 
 
 @pytest.mark.django_db
-def test_create_product_error():
+def test_create_product_error(user):
     with patch(
         'product_catalogue.services.OffersService.register_product_for_offers',
         side_effect=Exception(),
     ):
-        client = APIClient()
         url = reverse('product-list')
         data = {'name': 'Test Product', 'description': 'Test Description'}
 
-        response = client.post(url, data, format='json')
+        response = _send_post_request_auth(url, data, user)
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         assert Product.objects.count() == 0
 
 
 @pytest.mark.django_db
-def test_retrieve_product_without_offers():
+def test_retrieve_product_without_offers(user):
     product = _create_test_product()
-    client = APIClient()
     url = reverse('product-detail', args=[product.id])
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert response.data['name'] == 'Test Product'
     assert response.data['description'] == 'Test Description'
@@ -56,14 +61,13 @@ def test_retrieve_product_without_offers():
 
 
 @pytest.mark.django_db
-def test_retrieve_product_with_offers():
+def test_retrieve_product_with_offers(user):
     offer_count = 5
     product = _create_test_product()
     _create_test_offers(product, offer_count)
-    client = APIClient()
     url = reverse('product-detail', args=[product.id])
 
-    response = client.get(f"{url}?includeOffers=1")
+    response = _send_get_request_auth(f"{url}?includeOffers=1", user)
     assert response.status_code == status.HTTP_200_OK
     assert response.data['name'] == 'Test Product'
     assert response.data['description'] == 'Test Description'
@@ -71,24 +75,24 @@ def test_retrieve_product_with_offers():
 
 
 @pytest.mark.django_db
-def test_list_product():
+def test_list_product(user):
     [_create_test_product() for _ in range(4)]
-    client = APIClient()
     url = reverse('product-list')
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == 4
 
 
 @pytest.mark.django_db
-def test_update_product():
+def test_update_product(user):
     product = _create_test_product()
     client = APIClient()
     url = reverse('product-detail', args=[product.id])
     data = {'name': 'Updated Product', 'description': 'Updated Description'}
 
-    response = client.put(url, data, format='json')
+    headers = _get_access_token_header(user)
+    response = client.put(url, data, format='json', headers=headers)
     assert response.status_code == status.HTTP_200_OK
 
     product.refresh_from_db()
@@ -97,25 +101,25 @@ def test_update_product():
 
 
 @pytest.mark.django_db
-def test_delete_product():
+def test_delete_product(user):
     product = _create_test_product()
     client = APIClient()
     url = reverse('product-detail', args=[product.id])
 
-    response = client.delete(url)
+    headers = _get_access_token_header(user)
+    response = client.delete(url, headers=headers)
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     assert Product.objects.count() == 0
 
 
 @pytest.mark.django_db
-def test_retrieve_offer():
+def test_retrieve_offer(user):
     product = _create_test_product()
     offer = _create_test_offers(product, 1)[0]
-    client = APIClient()
     url = reverse('offer-detail', args=[offer.id])
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert response.data['price'] == 500
     assert response.data['items_in_stock'] == 0
@@ -123,21 +127,20 @@ def test_retrieve_offer():
 
 
 @pytest.mark.django_db
-def test_list_offers():
+def test_list_offers(user):
     offer_count = 5
     product = _create_test_product()
     _create_test_offers(product, offer_count)
-    client = APIClient()
     url = reverse('offer-list')
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert len(response.data) == offer_count
 
 
 @patch('product_catalogue.tasks.offers_service.get_product_offers')
 @pytest.mark.django_db
-def test_list_offers(mock_get_product_offers):
+def test_fetch_offers_task(mock_get_product_offers):
     product = _create_test_product()
     offers = _create_test_offers(product)
 
@@ -163,9 +166,8 @@ def test_list_offers(mock_get_product_offers):
 
 
 @pytest.mark.django_db
-def test_product_offers_compare_two_dates():
+def test_product_offers_compare_two_dates(user):
     product = _create_test_product()
-    client = APIClient()
     from_day = "10.04.2020"
     to_day = "23.06.2021"
     url = (
@@ -173,35 +175,71 @@ def test_product_offers_compare_two_dates():
     )
     _create_offers_for_compare_tests(product, from_day, to_day)
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert response.data['start_price'] == 1250
     assert response.data['end_price'] == 3833.33
 
 
 @pytest.mark.django_db
-def test_product_offers_compare_only_with_start_day():
+def test_product_offers_compare_only_with_start_day(user):
     product = _create_test_product()
-    client = APIClient()
     from_day = "10.04.2020"
     to_day = "23.06.2021"
     url = f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}'
     _create_offers_for_compare_tests(product, from_day, to_day)
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_200_OK
     assert response.data['start_price'] == 1250
     assert response.data['end_price'] == 5000
 
 
 @pytest.mark.django_db
-def test_product_offers_compare_without_fromDay_parameter():
+def test_product_offers_compare_without_fromDay_parameter(user):
     product = _create_test_product()
-    client = APIClient()
     url = f'/api/v1/products/{product.id}/price_change/'
 
-    response = client.get(url)
+    response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_user_creation(user):
+    client = APIClient()
+    url = reverse('auth')
+    data = {'email': 'test@gmail.com'}
+    response = client.post(url, data, format='json')
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+
+@pytest.mark.django_db
+def test_user_creation_missing_email(user):
+    client = APIClient()
+    url = reverse('auth')
+    data = {}
+    response = client.post(url, data, format='json')
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_list_products_no_auth():
+    client = APIClient()
+    url = reverse('product-list')
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_list_offers_no_auth():
+    client = APIClient()
+    url = reverse('offer-list')
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
 def _create_offers_for_compare_tests(
@@ -255,3 +293,19 @@ def _create_closed_offer(product: Product, created_at: datetime, price: int) -> 
         created_at=created_at,
         closed_at=created_at + timedelta(hours=5),
     )
+
+
+def _send_get_request_auth(url: str, user: User):
+    headers = _get_access_token_header(user)
+    client = APIClient()
+    return client.get(url, headers=headers)
+
+
+def _send_post_request_auth(url: str, data: dict, user: User):
+    headers = _get_access_token_header(user)
+    client = APIClient()
+    return client.post(url, data, format='json', headers=headers)
+
+
+def _get_access_token_header(user: User):
+    return {'Access-Token': user.access_token}

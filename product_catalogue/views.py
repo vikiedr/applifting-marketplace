@@ -1,13 +1,15 @@
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import status
 from django.db import transaction
 from django.db.models import Avg, Q
 from datetime import datetime, timedelta
+from django.http import HttpResponseForbidden
 
-from .models import Product, Offer
-from .serializers import ProductSerializer, OfferSerializer
+from .models import Product, Offer, User
+from .serializers import ProductSerializer, OfferSerializer, UserSerializer
 from .services import OffersService
 
 
@@ -15,7 +17,17 @@ class OffersServiceMixin:
     offers_service = OffersService()
 
 
-class ProductViewSet(ModelViewSet, OffersServiceMixin):
+class AuthenticationMixin:
+    def dispatch(self, request, *args, **kwargs):
+        access_token = request.headers.get('Access-Token')
+        try:
+            User.objects.get(access_token=access_token)
+            return super().dispatch(request, *args, **kwargs)
+        except Exception as e:
+            return HttpResponseForbidden('Invalid Access-Token')
+
+
+class ProductViewSet(AuthenticationMixin, ModelViewSet, OffersServiceMixin):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
@@ -93,6 +105,26 @@ class ProductViewSet(ModelViewSet, OffersServiceMixin):
         return round(avg_price, 2)
 
 
-class OfferViewSet(ReadOnlyModelViewSet, OffersServiceMixin):
+class OfferViewSet(AuthenticationMixin, ReadOnlyModelViewSet, OffersServiceMixin):
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
+
+
+class UsersView(APIView):
+    serializer_class = UserSerializer
+
+    def post(self, request, format=None):
+        email = request.data.get('email', False)
+        if not email:
+            return Response(
+                {
+                    "error": "You need to provide Email address in 'email' Body form data."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        instance, created = User.objects.get_or_create(email=email)
+
+        serializer = UserSerializer(instance)
+        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(serializer.data, status=status_code)

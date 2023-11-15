@@ -44,3 +44,8 @@ class OfferCredentials(models.Model):
     @property
     def refresh_token_str(self):
         return str(self.refresh_token) if self.refresh_token else None
+
+
+class User(models.Model):
+    email = models.EmailField(primary_key=True, editable=False)
+    access_token = models.UUIDField(default=uuid.uuid4, editable=False)
