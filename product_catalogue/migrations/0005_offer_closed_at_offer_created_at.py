@@ -5,7 +5,6 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('product_catalogue', '0004_alter_offercredentials_access_token'),
     ]

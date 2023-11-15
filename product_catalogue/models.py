@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 import uuid
 
+
 class Product(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -9,13 +10,15 @@ class Product(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.id})'
-    
+
 
 class Offer(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     price = models.IntegerField()
     items_in_stock = models.IntegerField()
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='offers')
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='offers'
+    )
     created_at = models.DateTimeField(default=timezone.now)
     closed_at = models.DateTimeField(default=None, null=True)
 
@@ -37,7 +40,7 @@ class OfferCredentials(models.Model):
     access_token = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     @property
     def refresh_token_str(self):
         return str(self.refresh_token) if self.refresh_token else None

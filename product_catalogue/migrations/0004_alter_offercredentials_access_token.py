@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('product_catalogue', '0003_alter_offercredentials_access_token'),
     ]

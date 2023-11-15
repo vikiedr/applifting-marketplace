@@ -9,7 +9,7 @@ from .services import OffersService
 offers_service = OffersService()
 logger = logging.getLogger(__name__)
 
-    
+
 @shared_task
 def fetch_offers_task() -> None:
     logging.info(f'Starting Task {fetch_offers_task.__name__}')
@@ -20,7 +20,9 @@ def fetch_offers_task() -> None:
 
             is_new_offer = False if available_offers_db.exists() else True
             for offer in available_offers_db:
-                matched_offer = next((o for o in available_offers_api if o['id'] == str(offer.id)), None)
+                matched_offer = next(
+                    (o for o in available_offers_api if o['id'] == str(offer.id)), None
+                )
                 if matched_offer:
                     offer.price = matched_offer['price']
                     offer.items_in_stock = matched_offer['items_in_stock']
@@ -31,7 +33,7 @@ def fetch_offers_task() -> None:
                     offer.closed_at = datetime.now(timezone.utc)
                     logging.debug(f'Offer {offer} Sold Out')
                 offer.save()
-                    
+
             if is_new_offer:
                 for offer in available_offers_api:
                     if offer['id'] not in (str(o.id) for o in available_offers_db):
