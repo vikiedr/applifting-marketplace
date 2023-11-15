@@ -3,6 +3,7 @@ from rest_framework import status
 import pytest
 from django.urls import reverse
 from unittest.mock import patch
+from datetime import datetime, timedelta
 
 from product_catalogue.tasks import fetch_offers_task
 from product_catalogue.models import Product, Offer
@@ -34,7 +35,6 @@ def test_create_product_error():
         
         response = client.post(url, data, format='json')
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-
         assert Product.objects.count() == 0
 
 @pytest.mark.django_db
@@ -129,15 +129,15 @@ def test_list_offers(mock_get_product_offers):
     product = _create_test_product()
     offers = _create_test_offers(product)
     
-    offers = offers[2:]
-    offers.append(
+    offers_from_api = offers[2:]
+    offers_from_api.append(
         Offer(
             price=10000,
             items_in_stock=200,
             product=product,
         )
     )
-    serializer = OfferSerializer(offers, many=True)
+    serializer = OfferSerializer(offers_from_api, many=True)
     offers_from_api = serializer.data
     offers_from_api[0]['price'] += 20
     mock_get_product_offers.return_value = offers_from_api
@@ -147,8 +147,64 @@ def test_list_offers(mock_get_product_offers):
     assert new_offers.count() == 6
     assert new_offers.filter(items_in_stock__gt=0).count() == 4
     assert new_offers.filter(price=10000).count() == 1
-    
+    assert new_offers.get(id=offers[1].id).closed_at is not None
 
+@pytest.mark.django_db
+def test_product_offers_compare_two_dates():
+    product = _create_test_product()
+    client = APIClient()
+    from_day = "10.04.2020"
+    to_day = "23.06.2021"
+    url = f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}&toDay={to_day}'
+    _create_offers_for_compare_tests(product, from_day, to_day)
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['start_price'] == 1250
+    assert response.data['end_price'] == 3833.33
+
+@pytest.mark.django_db
+def test_product_offers_compare_only_with_start_day():
+    product = _create_test_product()
+    client = APIClient()
+    from_day = "10.04.2020"
+    to_day = "23.06.2021"
+    url = f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}'
+    _create_offers_for_compare_tests(product, from_day, to_day)
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['start_price'] == 1250
+    assert response.data['end_price'] == 5000
+
+@pytest.mark.django_db
+def test_product_offers_compare_without_fromDay_parameter():
+    product = _create_test_product()
+    client = APIClient()
+    url = f'/api/v1/products/{product.id}/price_change/'
+
+    response = client.get(url)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+def _create_offers_for_compare_tests(product: Product, from_day: str, to_day: str) -> None:
+    from_day = datetime.strptime(from_day, '%d.%m.%Y')
+    to_day = datetime.strptime(to_day, '%d.%m.%Y')
+    _create_closed_offer(product, from_day - timedelta(hours=10), 500)
+    _create_closed_offer(product, from_day - timedelta(hours=3), 1000)
+    _create_closed_offer(product, from_day + timedelta(hours=3), 1500)
+    _create_closed_offer(product, from_day + timedelta(hours=25), 2000)
+    _create_closed_offer(product, to_day - timedelta(hours=10), 2500)
+    _create_closed_offer(product, to_day - timedelta(hours=3), 3000)
+    _create_closed_offer(product, to_day + timedelta(hours=3), 3500)
+    _create_closed_offer(product, to_day + timedelta(hours=25), 4000)
+    
+    Offer.objects.create(
+        price=5000,
+        items_in_stock=20,
+        product=product,
+        created_at=to_day + timedelta(hours=20),
+    )
+    
 def _create_test_product() -> Product:
     product = Product.objects.create(name='Test Product', description='Test Description')
     return product
@@ -165,3 +221,12 @@ def _create_test_offers(product: Product, count: int=5) -> [Offer]:
         )
         for i in range(count)
     ]
+    
+def _create_closed_offer(product: Product, created_at:datetime, price: int) -> Offer:
+    return Offer.objects.create(
+        price=price,
+        items_in_stock=0,
+        product=product,
+        created_at=created_at,
+        closed_at=created_at + timedelta(hours=5)        
+    )

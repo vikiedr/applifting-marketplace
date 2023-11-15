@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 import uuid
 
 class Product(models.Model):
@@ -15,6 +16,8 @@ class Offer(models.Model):
     price = models.IntegerField()
     items_in_stock = models.IntegerField()
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='offers')
+    created_at = models.DateTimeField(default=timezone.now)
+    closed_at = models.DateTimeField(default=None, null=True)
 
     @classmethod
     def from_json(cls, json_data, product):

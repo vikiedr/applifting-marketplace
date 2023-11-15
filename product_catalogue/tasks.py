@@ -1,5 +1,6 @@
 from celery import shared_task
 import logging
+from datetime import datetime, timezone
 
 from .models import Product, Offer
 from .services import OffersService
@@ -27,6 +28,7 @@ def fetch_offers_task() -> None:
                 else:
                     offer.items_in_stock = 0
                     is_new_offer = True
+                    offer.closed_at = datetime.now(timezone.utc)
                     logging.debug(f'Offer {offer} Sold Out')
                 offer.save()
                     
