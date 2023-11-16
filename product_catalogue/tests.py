@@ -193,6 +193,23 @@ def test_product_offers_compare_only_with_start_day(user):
     assert response.status_code == status.HTTP_200_OK
     assert response.data['start_price'] == 1250
     assert response.data['end_price'] == 5000
+    assert response.data['price_change'] == 300
+
+
+@pytest.mark.django_db
+def test_product_offers_compare_with_price_drop(user):
+    product = _create_test_product()
+    from_day = "10.04.2020"
+    to_day = "23.06.2021"
+    url = f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}&toDay={to_day}'
+    _create_closed_offer(product, _str_to_datetime(from_day), 1500)
+    _create_closed_offer(product, _str_to_datetime(to_day), 1200)
+
+    response = _send_get_request_auth(url, user)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['start_price'] == 1500
+    assert response.data['end_price'] == 1200
+    assert response.data['price_change'] == -20
 
 
 @pytest.mark.django_db
@@ -202,6 +219,49 @@ def test_product_offers_compare_without_fromDay_parameter(user):
 
     response = _send_get_request_auth(url, user)
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+def test_product_offers_compare_two_dates_but_no_offers(user):
+    product = _create_test_product()
+    from_day = "10.04.2020"
+    to_day = "23.06.2021"
+    url = (
+        f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}&toDay={to_day}'
+    )
+
+    response = _send_get_request_auth(url, user)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data['error'] == f'Couldnt find any Offers for days: {", ".join((from_day, to_day))}'
+
+
+@pytest.mark.django_db
+def test_product_offers_compare_no_offers_on_from_day(user):
+    product = _create_test_product()
+    from_day = "10.04.2020"
+    to_day = "23.06.2021"
+    url = (
+        f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}&toDay={to_day}'
+    )
+    _create_closed_offer(product, _str_to_datetime(to_day), 1000)
+
+    response = _send_get_request_auth(url, user)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data['error'] == f'Couldnt find any Offers for days: {from_day}'
+
+
+@pytest.mark.django_db
+def test_product_offers_compare_no_offers_on_to_day(user):
+    product = _create_test_product()
+    from_day = "10.04.2020"
+    url = (
+        f'/api/v1/products/{product.id}/price_change/?fromDay={from_day}'
+    )
+    _create_closed_offer(product, _str_to_datetime(from_day), 1000)
+
+    response = _send_get_request_auth(url, user)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.data['error'] == f'Couldnt find any Offers for days: Today'
 
 
 @pytest.mark.django_db
@@ -245,8 +305,8 @@ def test_list_offers_no_auth():
 def _create_offers_for_compare_tests(
     product: Product, from_day: str, to_day: str
 ) -> None:
-    from_day = datetime.strptime(from_day, '%d.%m.%Y')
-    to_day = datetime.strptime(to_day, '%d.%m.%Y')
+    from_day = _str_to_datetime(from_day)
+    to_day = _str_to_datetime(to_day)
     _create_closed_offer(product, from_day - timedelta(hours=10), 500)
     _create_closed_offer(product, from_day - timedelta(hours=3), 1000)
     _create_closed_offer(product, from_day + timedelta(hours=3), 1500)
@@ -262,6 +322,10 @@ def _create_offers_for_compare_tests(
         product=product,
         created_at=to_day + timedelta(hours=20),
     )
+    
+    
+def _str_to_datetime(date_str):
+    return datetime.strptime(date_str + ' +0000', '%d.%m.%Y %z')
 
 
 def _create_test_product() -> Product:

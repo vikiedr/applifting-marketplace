@@ -99,18 +99,33 @@ class ProductViewSet(AuthenticationMixin, ModelViewSet, OffersServiceMixin):
 
         start_day_price = self._calculate_avg_price_for_day(product, from_day_str)
         end_day_price = self._calculate_avg_price_for_day(product, to_day_str)
+        
+        no_prices_for_days = []
+        if not start_day_price:
+            no_prices_for_days.append(from_day_str)
+        if not end_day_price:
+            no_prices_for_days.append(to_day_str if to_day_str else 'Today')
+        
+        if no_prices_for_days:
+            err_msg = f'Couldnt find any Offers for days: {", ".join(no_prices_for_days)}'
+            
+            return Response(
+                {"error": err_msg},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         return Response(
             {
                 'start_price': start_day_price,
                 'end_price': end_day_price,
+                'price_change': round((end_day_price / start_day_price - 1) * 100, 2)
             }
         )
 
     @staticmethod
     def _calculate_avg_price_for_day(product: Product, day_str: str):
         if day_str:
-            datetime_bot = datetime.strptime(day_str, '%d.%m.%Y')
+            datetime_bot = datetime.strptime(day_str + ' +0000', '%d.%m.%Y %z')
             datetime_top = datetime_bot + timedelta(days=1)
 
             q = Q(created_at__lt=datetime_top) & (
@@ -121,7 +136,10 @@ class ProductViewSet(AuthenticationMixin, ModelViewSet, OffersServiceMixin):
         avg_price = product.offers.filter(q).aggregate(avg_price=Avg('price'))[
             'avg_price'
         ]
-        return round(avg_price, 2)
+        try:
+            return round(avg_price, 2)
+        except:
+            return 0
 
 
 class OfferViewSet(AuthenticationMixin, ReadOnlyModelViewSet, OffersServiceMixin):
