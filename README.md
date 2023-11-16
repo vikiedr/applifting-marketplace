@@ -11,6 +11,7 @@ The services include a Django web server, a PostgreSQL database, RabbitMQ for me
    - SECRET_KEY: Django Secret Key
    - OFFERS_SERVICE_BASE_URL: Base URL for Offers Microservice
    - OFFERS_SERVICE_REFRESH_TOKEN: Refresh Token generated using Offers Microservice /auth/ endpoint
+   - FETCH_OFFERS_INTERVAL: Interval (seconds) in which will Offers be fetched from Microservice
 3) Run docker-compose up to start the services.
 
 ```bash

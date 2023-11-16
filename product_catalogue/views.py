@@ -8,7 +8,7 @@ from django.db.models import Avg, Q
 from datetime import datetime, timedelta
 from django.http import HttpResponseForbidden
 from drf_spectacular.openapi import AutoSchema
-from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 
 from .models import Product, Offer, User
 from .serializers import ProductSerializer, OfferSerializer, UserSerializer
@@ -71,11 +71,16 @@ class ProductViewSet(AuthenticationMixin, ModelViewSet, OffersServiceMixin):
         return Response(
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
-
+    
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name='includeOffers', type=bool, location=OpenApiParameter.QUERY, description='Return Active Offers for Product'),
+        ],
+    )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        include_offers = request.query_params.get('includeOffers', False)
+        include_offers = request.query_params.get('includeOffers') in [1, 'True', 'true']
         data = serializer.data
 
         if include_offers:
@@ -85,7 +90,13 @@ class ProductViewSet(AuthenticationMixin, ModelViewSet, OffersServiceMixin):
             data['offers'] = offers_data
 
         return Response(data)
-
+    
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name='fromDay', type=str, location=OpenApiParameter.QUERY, description='Start Date of comparison (DD.MM.YYYY)'),
+            OpenApiParameter(name='toDay', type=str, location=OpenApiParameter.QUERY, description='End Date of comparison (DD.MM.YYYY). If none provided Present Day will be used'),
+        ],
+    )
     @action(detail=True, methods=['get'])
     def price_change(self, request, pk=None):
         product = self.get_object()
@@ -149,7 +160,20 @@ class OfferViewSet(AuthenticationMixin, ReadOnlyModelViewSet, OffersServiceMixin
 
 class UsersView(APIView):
     serializer_class = UserSerializer
-
+    
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                'Request Access-Token',
+                summary='Request Access-Token',
+                description='Generates Access-Token for given email.',
+                value={
+                    'email': 'testUser@gmail.com'
+                },
+                request_only=True,
+            ),
+        ]
+    )
     def post(self, request, format=None):
         email = request.data.get('email', False)
         if not email:

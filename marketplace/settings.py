@@ -28,7 +28,7 @@ SECRET_KEY = getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -166,7 +166,7 @@ CELERY_BROKER_URL = getenv('CELERY_BROKER_URL')
 CELERY_BEAT_SCHEDULE = {
     'fetch_offers_task': {
         'task': 'product_catalogue.tasks.fetch_offers_task',
-        'schedule': timedelta(seconds=90),
+        'schedule': timedelta(seconds=int(getenv('FETCH_OFFERS_INTERVAL', 90))),
     },
 }
 
