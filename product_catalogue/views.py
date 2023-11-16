@@ -7,10 +7,27 @@ from django.db import transaction
 from django.db.models import Avg, Q
 from datetime import datetime, timedelta
 from django.http import HttpResponseForbidden
+from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.utils import OpenApiParameter
 
 from .models import Product, Offer, User
 from .serializers import ProductSerializer, OfferSerializer, UserSerializer
 from .services import OffersService
+
+
+class AuthenticationSchema(AutoSchema):
+    global_params = [
+        OpenApiParameter(
+            name="Access-Token",
+            type=str,
+            location=OpenApiParameter.HEADER,
+            description="Access token from the `auth` endpoint",
+        )
+    ]
+
+    def get_override_parameters(self):
+        params = super().get_override_parameters()
+        return params + self.global_params
 
 
 class OffersServiceMixin:
@@ -18,6 +35,8 @@ class OffersServiceMixin:
 
 
 class AuthenticationMixin:
+    schema = AuthenticationSchema()
+    
     def dispatch(self, request, *args, **kwargs):
         access_token = request.headers.get('Access-Token')
         try:

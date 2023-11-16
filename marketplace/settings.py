@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'product_catalogue',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -167,4 +168,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'product_catalogue.tasks.fetch_offers_task',
         'schedule': timedelta(seconds=90),
     },
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
